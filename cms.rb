@@ -103,19 +103,6 @@ post "/new" do
   end
 end
 
-# Write to file
-post "/:filename" do
-  file_path = File.join(data_path, params[:filename])
-
-  f = File.open(file_path, 'w')
-  f.write(params[:content])
-  f.close
-
-  session[:message] = "#{params[:filename]} has been updated."
-
-  redirect "/"
-end
-
 # Create a file
 get "/new" do
   erb :new, layout: :layout
@@ -127,6 +114,48 @@ post "/:filename/delete" do
   FileUtils.rm_rf(file_path)
 
   session[:message] = "#{params[:filename]} was deleted."
+
+  redirect "/"
+end
+
+# Login page
+get "/login" do
+  erb :login, layout: :layout
+end
+
+# Login
+post "/login" do
+  if params[:user_name] == 'admin' && params[:password] == 'secret'
+    session[:user_name] = params[:user_name]
+    session[:message] = "Welcome!"
+    session[:logged_in] = true
+    redirect "/"
+  else
+    session[:message] = "Invalid Credentials!"
+    status 422
+    erb :login
+  end
+end
+
+# Logout
+post "/logout" do
+  session[:logged_in] = false
+  session[:user_name] = nil
+
+  session[:message] = "You have been signed out."
+
+  redirect "/"
+end
+
+# Write to file
+post "/:filename" do
+  file_path = File.join(data_path, params[:filename])
+
+  f = File.open(file_path, 'w')
+  f.write(params[:content])
+  f.close
+
+  session[:message] = "#{params[:filename]} has been updated."
 
   redirect "/"
 end

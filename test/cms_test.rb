@@ -147,4 +147,50 @@ class CMSTest < Minitest::Test
     assert_includes last_response.body, "about.txt was deleted."
     refute_includes last_response.body, "about.txt</a>"
   end
+
+  def test_admin_login
+    get "/"
+
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "Sign In"
+
+    get "/login"
+
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "Username"
+    assert_includes last_response.body, "Password"
+
+    post "/login", user_name: "admin", password: "secret"
+
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "Welcome!"
+    assert_includes last_response.body, "Signed in as admin."
+  end
+
+  def test_login_fail
+    post "/login", user_name: "abc", password: "123"
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body, "Invalid Credentials!"
+  end
+
+  def test_logout
+    post "/login", user_name: "admin", password: "secret"
+    get last_response["Location"]
+
+    assert_includes last_response.body, "Sign Out"
+
+    post "/logout"
+
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "You have been signed out."
+    assert_includes last_response.body, "Sign In"
+  end
 end

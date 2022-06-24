@@ -12,4 +12,17 @@
 
 <p>
   <a href="/new">New Document</a>
+
+  <div>
+    <% if session[:logged_in] %>
+      <em>Signed in as <%= session[:user_name] %>.</em>
+      <form class="inline" method="post" action="/logout">
+        <button type="submit">Sign Out</button>
+      </form>
+    <% else %>
+      <form method="get" action="/login">
+        <button type="submit">Sign In</button>
+      </form>
+    <% end %>
+  </div>
 </p>
