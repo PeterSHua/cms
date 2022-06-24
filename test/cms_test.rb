@@ -103,4 +103,48 @@ class CMSTest < Minitest::Test
     assert_equal 200, last_response.status
     assert_includes last_response.body, "new content"
   end
+
+  def test_new_file
+    get "/"
+
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "New Document"
+
+    get "/new"
+
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "<input"
+    assert_includes last_response.body, "<input type=\"submit"
+
+    post "/new", filename: "new file.txt"
+
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "new file.txt was created."
+
+    get "/"
+    assert_includes last_response.body, "new file.txt"
+  end
+
+  def test_new_file_no_name
+    post "/new", filename: ""
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body, "A name is required."
+  end
+
+  def test_delete
+    create_document "about.txt"
+
+    post "/about.txt/delete"
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "about.txt was deleted."
+    refute_includes last_response.body, "about.txt</a>"
+  end
 end

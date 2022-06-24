@@ -3,6 +3,7 @@ require "sinatra"
 require "sinatra/reloader"
 require "sinatra/content_for"
 require "redcarpet"
+require "fileutils"
 
 root = File.expand_path("..", __FILE__)
 
@@ -89,14 +90,14 @@ post "/new" do
   file_name = params[:filename]
 
   if file_name.empty?
-    session[:message] = "A name is required"
-
-    redirect "/new"
+    session[:message] = "A name is required."
+    status 422
+    erb :new, layout: :layout
   else
     file_path = File.join(data_path, file_name)
     File.new(file_path, "w+")
 
-    session[:message] = "#{file_name} was created"
+    session[:message] = "#{file_name} was created."
 
     redirect "/"
   end
@@ -118,4 +119,14 @@ end
 # Create a file
 get "/new" do
   erb :new, layout: :layout
+end
+
+# Delete a file
+post "/:filename/delete" do
+  file_path = File.join(data_path, params[:filename])
+  FileUtils.rm_rf(file_path)
+
+  session[:message] = "#{params[:filename]} was deleted."
+
+  redirect "/"
 end
