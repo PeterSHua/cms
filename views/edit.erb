@@ -1,0 +1,11 @@
+<!-- Textbox with file content of params[:filename] -->
+<!-- POST with body of updated file content in params[:content] -->
+<form action="/<%= @filename %>" method="post">
+  <label for="content">Edit content of <%= @filename %>:</label>
+
+  <div>
+    <textarea name="content" rows="20" cols="100"><%= @content %></textarea>
+  </div>
+
+  <input type="submit" value="Save Changes">
+</form>
