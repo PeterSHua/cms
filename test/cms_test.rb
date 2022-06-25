@@ -140,12 +140,21 @@ class CMSTest < Minitest::Test
   end
 
   def test_new_file_no_name
-    get "/new", { filename: "foobar.txt" }, admin_session
+    get "/new", {}, admin_session
 
     post "/new", filename: ""
 
     assert_equal 422, last_response.status
     assert_includes last_response.body, "A name is required."
+  end
+
+  def test_new_file_unsupported_ext
+    get "/new", {}, admin_session
+
+    post "/new", filename: "foo.bar"
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body, "Invalid file extension. Supported file extensions:"
   end
 
   def test_new_file_page_no_access

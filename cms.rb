@@ -7,7 +7,7 @@ require "fileutils"
 require "yaml"
 require "bcrypt"
 
-root = File.expand_path("..", __FILE__)
+SUPPORTED_EXT = %w(txt md)
 
 configure do
   enable :sessions
@@ -117,8 +117,14 @@ post "/new" do
 
   file_name = params[:filename]
 
+  ext = file_name.split('.').last
+
   if file_name.empty?
     session[:message] = "A name is required."
+    status 422
+    erb :new, layout: :layout
+  elsif !SUPPORTED_EXT.include?(ext)
+    session[:message] = "Invalid file extension. Supported file extensions: #{SUPPORTED_EXT.join(', ')}"
     status 422
     erb :new, layout: :layout
   else
