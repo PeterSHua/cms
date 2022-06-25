@@ -37,6 +37,17 @@ def data_path
   end
 end
 
+def logged_in?
+  session[:logged_in]
+end
+
+def prompt_login
+  unless logged_in?
+    session[:message] = "You must be signed in to do that."
+    redirect "/"
+  end
+end
+
 before do
 
 end
@@ -45,7 +56,7 @@ helpers do
 
 end
 
-# File index
+# Render homepage
 get "/" do
   pattern = File.join(data_path, '*')
 
@@ -74,6 +85,8 @@ end
 
 # Render edit page
 get "/:filename/edit" do
+  prompt_login
+
   file_path = File.join(data_path, params[:filename])
 
   @filename = params[:filename]
@@ -84,8 +97,7 @@ end
 
 # Create a file
 post "/new" do
-  # Create the file
-  # Validate user input
+  prompt_login
 
   file_name = params[:filename]
 
@@ -103,13 +115,17 @@ post "/new" do
   end
 end
 
-# Create a file
+# Render file creation page
 get "/new" do
+  prompt_login
+
   erb :new, layout: :layout
 end
 
 # Delete a file
 post "/:filename/delete" do
+  prompt_login
+
   file_path = File.join(data_path, params[:filename])
   FileUtils.rm_rf(file_path)
 
@@ -149,6 +165,8 @@ end
 
 # Write to file
 post "/:filename" do
+  prompt_login
+
   file_path = File.join(data_path, params[:filename])
 
   f = File.open(file_path, 'w')
