@@ -1,5 +1,5 @@
 {
-        bill: billspassword,
-        sonia: soniaspassword,
-        admin: secret
+        bill: "$2a$12$2KZjaPDY6SJtzDL1ooRx.OOa.Q6wlHPwz2GLjrt7SPlOMenDKJ0rm",
+        sonia: $2a$12$wBa.tkTL95MW6c7VHtvLNuia6KXLx9038Ngkpdzq6IPBvsLm5qzAu",
+        admin: "$2a$12$bFZo.dBUHZeCelFk7L1VW.8fovMaAdcM6nE1MUNUcl4tBIAF/8O6."
 }

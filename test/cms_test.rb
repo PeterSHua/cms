@@ -193,7 +193,7 @@ class CMSTest < Minitest::Test
     assert_includes last_response.body, "Username"
     assert_includes last_response.body, "Password"
 
-    post "/login", user_name: "admin", password: "secret"
+    post "/login", { user_name: "admin", password: "secret" }
 
     assert_equal 302, last_response.status
     assert_equal "Welcome!", session[:message]
@@ -205,7 +205,7 @@ class CMSTest < Minitest::Test
   end
 
   def test_login_fail
-    post "/login", user_name: "abc", password: "123"
+    post "/login", { user_name: "admin", password: "foobar" }
 
     assert_equal 422, last_response.status
     assert_includes last_response.body, "Invalid Credentials!"
@@ -213,7 +213,7 @@ class CMSTest < Minitest::Test
   end
 
   def test_logout
-    post "/login", user_name: "admin", password: "secret"
+    post "/login", { user_name: "admin", password: "secret" }
     get last_response["Location"]
 
     assert_includes last_response.body, "Sign Out"

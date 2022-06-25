@@ -7,3 +7,4 @@ gem "webrick"
 gem "rack-test"
 gem "minitest"
 gem "redcarpet"
+gem 'bcrypt'

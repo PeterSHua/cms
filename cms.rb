@@ -5,6 +5,7 @@ require "sinatra/content_for"
 require "redcarpet"
 require "fileutils"
 require "yaml"
+require "bcrypt"
 
 root = File.expand_path("..", __FILE__)
 
@@ -57,6 +58,10 @@ def accounts
   end
 
   YAML.load_file(account_path)
+end
+
+def valid_password?(user_name, raw_password)
+  BCrypt::Password.new(accounts[user_name]) == raw_password
 end
 
 before do
@@ -152,7 +157,7 @@ end
 
 # Login
 post "/login" do
-  if accounts[params[:user_name]] == params[:password]
+  if valid_password?(params[:user_name], params[:password])
     session[:user_name] = params[:user_name]
     session[:message] = "Welcome!"
     session[:logged_in] = true
