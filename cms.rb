@@ -4,6 +4,7 @@ require "sinatra/reloader"
 require "sinatra/content_for"
 require "redcarpet"
 require "fileutils"
+require "yaml"
 
 root = File.expand_path("..", __FILE__)
 
@@ -46,6 +47,16 @@ def prompt_login
     session[:message] = "You must be signed in to do that."
     redirect "/"
   end
+end
+
+def accounts
+  account_path = if ENV["RACK_ENV"] == "test"
+    File.expand_path("../test/accounts.yml", __FILE__)
+  else
+    File.expand_path("../accounts.yml", __FILE__)
+  end
+
+  YAML.load_file(account_path)
 end
 
 before do
@@ -141,7 +152,7 @@ end
 
 # Login
 post "/login" do
-  if params[:user_name] == 'admin' && params[:password] == 'secret'
+  if accounts[params[:user_name]] == params[:password]
     session[:user_name] = params[:user_name]
     session[:message] = "Welcome!"
     session[:logged_in] = true

@@ -32,7 +32,7 @@ class CMSTest < Minitest::Test
   end
 
   def admin_session
-    { "rack.session" => { username: "admin" } }
+    { "rack.session" => { logged_in: true } }
   end
 
   def test_index
