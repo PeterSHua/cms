@@ -111,21 +111,30 @@ get "/:filename/edit" do
   erb :edit, layout: :layout
 end
 
+def valid_ext?(ext)
+  SUPPORTED_EXT.include?(ext)
+end
+
+def invalid_name
+  session[:message] = "Invalid file extension. Supported file extensions: #{SUPPORTED_EXT.join(', ')}"
+  status 422
+end
+
 # Create a file
 post "/new" do
   prompt_login
 
   file_name = params[:filename]
-
   ext = file_name.split('.').last
 
   if file_name.empty?
     session[:message] = "A name is required."
     status 422
+
     erb :new, layout: :layout
-  elsif !SUPPORTED_EXT.include?(ext)
-    session[:message] = "Invalid file extension. Supported file extensions: #{SUPPORTED_EXT.join(', ')}"
-    status 422
+  elsif !valid_ext?(ext)
+    invalid_name
+
     erb :new, layout: :layout
   else
     file_path = File.join(data_path, file_name)
@@ -186,7 +195,7 @@ post "/logout" do
 end
 
 # Write to file
-post "/:filename" do
+post "/:filename/edit" do
   prompt_login
 
   file_path = File.join(data_path, params[:filename])
@@ -195,7 +204,22 @@ post "/:filename" do
   f.write(params[:content])
   f.close
 
-  session[:message] = "#{params[:filename]} has been updated."
+  if params[:newfilename]
+    ext = params[:newfilename].split('.').last
 
+    if valid_ext?(ext)
+      new_file_path = File.join(data_path, params[:newfilename])
+      File.rename(file_path, new_file_path)
+
+      flash_msg = "#{params[:newfilename]} has been updated"
+    else
+      invalid_name
+      redirect "/#{params[:filename]}/edit"
+    end
+  else
+    flash_msg = "#{params[:filename]} has been updated."
+  end
+
+  session[:message] = flash_msg
   redirect "/"
 end

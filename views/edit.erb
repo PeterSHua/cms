@@ -1,5 +1,6 @@
-<form action="/<%= @filename %>" method="post">
-  <label for="content">Edit content of <%= @filename %>:</label>
+<form action="/<%= @filename %>/edit" method="post">
+  <label for="newfilename">Edit content of </label>
+  <input name="newfilename" value="<%= @filename %>" type="text">
 
   <div>
     <textarea name="content" rows="20" cols="100"><%= @content %></textarea>

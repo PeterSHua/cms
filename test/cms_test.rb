@@ -98,7 +98,7 @@ class CMSTest < Minitest::Test
   def test_update_file
     create_document "about.md"
 
-    post "/about.md", { content: "new content" }, admin_session
+    post "/about.md/edit", { content: "new content" }, admin_session
 
     assert_equal 302, last_response.status
     assert_equal "about.md has been updated.", session[:message]
@@ -109,10 +109,18 @@ class CMSTest < Minitest::Test
     assert_includes last_response.body, "new content"
   end
 
+  def test_update_file_invalid_filename
+    create_document "about.md"
+
+    post "/about.md/edit", { newfilename: "foo" }, admin_session
+
+    assert_includes session[:message], "Invalid file extension. Supported file extensions:"
+  end
+
   def test_update_file_without_access
     create_document "about.md"
 
-    post "/about.md", content: "new content"
+    post "/about.md/edit", content: "new content"
 
     assert_equal 302, last_response.status
     assert_equal "You must be signed in to do that.", session[:message]
