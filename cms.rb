@@ -12,7 +12,7 @@ SUPPORTED_EXT = %w(txt md)
 configure do
   enable :sessions
   set :session_secret, 'super secret'
-  set :erb, :escape_html => true
+  set :erb, escape_html: true
 end
 
 def render_markdown(text)
@@ -33,9 +33,9 @@ end
 
 def data_path
   if ENV["RACK_ENV"] == "test"
-    File.expand_path("../test/data", __FILE__)
+    File.expand_path("test/data", __dir__)
   else
-    File.expand_path("../data", __FILE__)
+    File.expand_path("data", __dir__)
   end
 end
 
@@ -44,18 +44,18 @@ def logged_in?
 end
 
 def prompt_login
-  unless logged_in?
-    session[:message] = "You must be signed in to do that."
-    redirect "/"
-  end
+  return if logged_in?
+
+  session[:message] = "You must be signed in to do that."
+  redirect "/"
 end
 
 def accounts
   account_path = if ENV["RACK_ENV"] == "test"
-    File.expand_path("../test/accounts.yml", __FILE__)
-  else
-    File.expand_path("../accounts.yml", __FILE__)
-  end
+                   File.expand_path("test/accounts.yml", __dir__)
+                 else
+                   File.expand_path("accounts.yml", __dir__)
+                 end
 
   YAML.load_file(account_path)
 end
@@ -64,25 +64,117 @@ def valid_password?(user_name, raw_password)
   BCrypt::Password.new(accounts[user_name]) == raw_password
 end
 
-before do
+# rubocop: disable Metrics/MethodLength
+def dup_rgx
+  %r{
+    \A
+    (?<filename>.+)
+    (
+      \(
+      (?<dup_num>\d)
+      \)
+    ){1}
+    \.
+    (?<ext>[a-z]+)
+    \z
+  }ix
+end
+# rubocop: enable Metrics/MethodLength
 
+def split_filename_rgx
+  %r{
+    \A
+    (?<filename>.+)
+    \.
+    (?<ext>[a-z]+)
+    \z
+  }ix
 end
 
-helpers do
+# before do; end
 
+# helpers do; end
+
+def search_files
+  pattern = File.join(data_path, '*')
+
+  files = Dir.glob(pattern).reject do |path|
+    File.directory?(path)
+  end
+
+  files.map! do |file|
+    File.basename(file)
+  end
+end
+
+def valid_ext?(ext)
+  SUPPORTED_EXT.include?(ext)
+end
+
+def invalid_name
+  session[:message] = "Invalid file extension. Supported file extensions: "\
+                      "#{SUPPORTED_EXT.join(', ')}"
+  status 422
+end
+
+def new_filename_no_dups(filename)
+  name, ext = split_filename_rgx.match(filename).captures
+
+  "#{name}(1).#{ext}"
+end
+
+def new_filename_existing_dups(dup_files, name, ext)
+  max_dup_file = dup_files.max_by do |file|
+    dup_rgx.match(file)[:dup_num]
+  end
+
+  max_dup_num = dup_rgx.match(max_dup_file)[:dup_num]
+
+  "#{name}(#{max_dup_num.to_i + 1}).#{ext}"
+end
+
+# Split into filename and extension
+def split_filename(filename)
+  split_filename_rgx.match(filename).captures
+end
+
+# Returns an array of filenames with the same name ending with (digit) and same
+# extension
+def find_dup_files(name, ext)
+  search_files.select do |file|
+    match_res = dup_rgx.match(file)
+
+    next if match_res.nil?
+
+    dup_name, _dup_num, dup_ext = match_res.captures
+    name == dup_name && ext == dup_ext
+  end
+end
+
+def read_file(filename)
+  file_path = File.join(data_path, filename)
+  File.read(file_path)
+end
+
+# Returns a new filename accounting for existing duplicate filenames
+def calc_new_filename(dup_files, filename, name, ext)
+  if dup_files.empty?
+    new_filename_no_dups(filename)
+  else
+    new_filename_existing_dups(dup_files, name, ext)
+  end
+end
+
+def write_file(filename, content)
+  file_path = File.join(data_path, filename)
+  f = File.new(file_path, "w+")
+  f.write(content)
+  f.close
 end
 
 # Render homepage
 get "/" do
-  pattern = File.join(data_path, '*')
-
-  @files = Dir.glob(pattern).reject do |path|
-    File.directory?(path)
-  end
-
-  @files.map! do |file|
-    File.basename(file)
-  end
+  @files = search_files
 
   erb :home
 end
@@ -109,15 +201,6 @@ get "/:filename/edit" do
   @content = File.read(file_path)
 
   erb :edit, layout: :layout
-end
-
-def valid_ext?(ext)
-  SUPPORTED_EXT.include?(ext)
-end
-
-def invalid_name
-  session[:message] = "Invalid file extension. Supported file extensions: #{SUPPORTED_EXT.join(', ')}"
-  status 422
 end
 
 # Create a file
@@ -165,6 +248,23 @@ post "/:filename/delete" do
   redirect "/"
 end
 
+# Duplicate file
+post "/:filename/duplicate" do
+  prompt_login
+
+  content = read_file(params[:filename])
+  name, ext = split_filename(params[:filename])
+  dup_files = find_dup_files(name, ext)
+
+  new_filename = calc_new_filename(dup_files, params[:filename], name, ext)
+
+  write_file(new_filename, content)
+
+  session[:message] = "#{new_filename} was created."
+
+  redirect "/"
+end
+
 # Login page
 get "/login" do
   erb :login, layout: :layout
@@ -200,9 +300,7 @@ post "/:filename/edit" do
 
   file_path = File.join(data_path, params[:filename])
 
-  f = File.open(file_path, 'w')
-  f.write(params[:content])
-  f.close
+  File.write(file_path, params[:content])
 
   if params[:newfilename]
     ext = params[:newfilename].split('.').last

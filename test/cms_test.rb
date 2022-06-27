@@ -22,9 +22,7 @@ class CMSTest < Minitest::Test
   end
 
   def create_document(name, content = "")
-    File.open(File.join(data_path, name), "w") do |file|
-      file.write(content)
-    end
+    File.write(File.join(data_path, name), content)
   end
 
   def session
@@ -95,6 +93,19 @@ class CMSTest < Minitest::Test
     assert_equal "You must be signed in to do that.", session[:message]
   end
 
+  def test_duplicate
+    create_document "about.md"
+
+    post "/about.md/duplicate", {}, admin_session
+
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "about(1).md was created"
+    assert_includes last_response.body, "href=\"/about(1).md"
+  end
+
   def test_update_file
     create_document "about.md"
 
@@ -114,7 +125,8 @@ class CMSTest < Minitest::Test
 
     post "/about.md/edit", { newfilename: "foo" }, admin_session
 
-    assert_includes session[:message], "Invalid file extension. Supported file extensions:"
+    assert_includes session[:message],
+                    "Invalid file extension. Supported file extensions:"
   end
 
   def test_update_file_without_access
@@ -126,7 +138,7 @@ class CMSTest < Minitest::Test
     assert_equal "You must be signed in to do that.", session[:message]
   end
 
-  def test_new_file
+  def test_new_file_page
     get "/new", {}, admin_session
 
     assert_equal 200, last_response.status
@@ -137,8 +149,10 @@ class CMSTest < Minitest::Test
     assert_equal 200, last_response.status
     assert_includes last_response.body, "<input"
     assert_includes last_response.body, "<input type=\"submit"
+  end
 
-    post "/new", filename: "new file.txt"
+  def test_new_file
+    post "/new", { filename: "new file.txt" }, admin_session
 
     assert_equal 302, last_response.status
     assert_equal "new file.txt was created.", session[:message]
@@ -162,7 +176,8 @@ class CMSTest < Minitest::Test
     post "/new", filename: "foo.bar"
 
     assert_equal 422, last_response.status
-    assert_includes last_response.body, "Invalid file extension. Supported file extensions:"
+    assert_includes last_response.body,
+                    "Invalid file extension. Supported file extensions:"
   end
 
   def test_new_file_page_no_access
@@ -177,6 +192,48 @@ class CMSTest < Minitest::Test
 
     assert_equal 302, last_response.status
     assert_equal "You must be signed in to do that.", session[:message]
+  end
+
+  def test_dup_file_no_access
+    create_document "about.md"
+
+    post "/about.md/duplicate"
+
+    assert_equal 302, last_response.status
+    assert_equal "You must be signed in to do that.", session[:message]
+  end
+
+  def test_dup_file
+    get "/new", {}, admin_session
+
+    create_document "about.md"
+
+    post "/about.md/duplicate"
+
+    assert_equal 302, last_response.status
+    assert_equal "about(1).md was created.", session[:message]
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "about(1).md"
+  end
+
+  def test_dup_file_multiple
+    get "/new", {}, admin_session
+
+    create_document "about.md"
+
+    post "/about.md/duplicate"
+    get last_response["Location"]
+
+    post "/about.md/duplicate"
+
+    assert_equal "about(2).md was created.", session[:message]
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "about(1).md"
+    assert_includes last_response.body, "about(2).md"
   end
 
   def test_delete
