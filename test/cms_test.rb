@@ -15,10 +15,12 @@ class CMSTest < Minitest::Test
 
   def setup
     FileUtils.mkdir_p(data_path)
+    @original_accs = YAML.load_file(account_file_path)
   end
 
   def teardown
     FileUtils.rm_rf(data_path)
+    File.write(account_file_path, YAML.dump(@original_accs))
   end
 
   def create_document(name, content = "")
@@ -267,11 +269,11 @@ class CMSTest < Minitest::Test
     assert_includes last_response.body, "Username"
     assert_includes last_response.body, "Password"
 
-    post "/login", { user_name: "admin", password: "secret" }
+    post "/login", { username: "admin", password: "secret" }
 
     assert_equal 302, last_response.status
     assert_equal "Welcome!", session[:message]
-    assert_equal "admin", session[:user_name]
+    assert_equal "admin", session[:username]
     assert session[:logged_in]
 
     get last_response["Location"]
@@ -279,7 +281,7 @@ class CMSTest < Minitest::Test
   end
 
   def test_login_fail
-    post "/login", { user_name: "admin", password: "foobar" }
+    post "/login", { username: "admin", password: "foobar" }
 
     assert_equal 422, last_response.status
     assert_includes last_response.body, "Invalid Credentials!"
@@ -287,7 +289,7 @@ class CMSTest < Minitest::Test
   end
 
   def test_logout
-    post "/login", { user_name: "admin", password: "secret" }
+    post "/login", { username: "admin", password: "secret" }
     get last_response["Location"]
 
     assert_includes last_response.body, "Sign Out"
@@ -302,5 +304,94 @@ class CMSTest < Minitest::Test
     assert_equal 200, last_response.status
     refute session[:logged_in]
     assert_includes last_response.body, "Sign In"
+  end
+
+  def test_register_already_logged_in
+    post "/register", { username: "john", password: "deer" }, admin_session
+
+    assert_equal 302, last_response.status
+    assert_equal "You're already logged in.", session[:message]
+  end
+
+  def test_register_acc_exists
+    post "/register", { username: "admin", password: "admin" }
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body, "That account name already exists."
+  end
+
+  def test_register_short_username
+    post "/register", { username: "joh", password: "deer" }
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body,
+                    "Username must consist of only letters and numbers, "\
+                    "and must be between 4-10 characters."
+  end
+
+  def test_register_long_username
+    post "/register", { username: "johnjohnjohn", password: "deer" }
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body,
+                    "Username must consist of only letters and numbers, "\
+                    "and must be between 4-10 characters."
+  end
+
+  def test_register_invalid_chars_username
+    post "/register", { username: "j[]hn", password: "deer" }
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body,
+                    "Username must consist of only letters and numbers, "\
+                    "and must be between 4-10 characters."
+  end
+
+  def test_register_short_password
+    post "/register", { username: "john", password: "doe" }
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body,
+                    "Password must be between 4-10 characters and cannot "\
+                    "contain spaces."
+  end
+
+  def test_register_long_password
+    post "/register", { username: "john", password: "deerdeerdeer" }
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body,
+                    "Password must be between 4-10 characters and cannot "\
+                    "contain spaces."
+  end
+
+  def test_register_invalid_chars_password
+    post "/register", { username: "john", password: "d e e r" }
+
+    assert_equal 422, last_response.status
+    assert_includes last_response.body,
+                    "Password must be between 4-10 characters and cannot "\
+                    "contain spaces."
+  end
+
+  def test_register
+    get "/register", {}
+
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "Username"
+    assert_includes last_response.body, "Password"
+
+    post "/register", { username: "john", password: "deer" }
+
+    assert_equal 302, last_response.status
+    assert_equal "Your account has been registered.", session[:message]
+    assert_equal "john", session[:username]
+    assert session[:logged_in]
+
+    post "/logout"
+    refute session[:logged_in]
+    post "/login", { username: "john", password: "deer" }
+
+    assert session[:logged_in]
   end
 end

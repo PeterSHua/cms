@@ -1,3 +1,4 @@
+<h1>Content Management System</h1>
 <ul>
   <% @files.each do |file| %>
     <li>
@@ -19,7 +20,7 @@
 
   <div>
     <% if session[:logged_in] %>
-      <em>Signed in as <%= session[:user_name] %>.</em>
+      <em>Signed in as <%= session[:username] %>.</em>
       <form class="inline" method="post" action="/logout">
         <button type="submit">Sign Out</button>
       </form>

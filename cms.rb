@@ -8,6 +8,9 @@ require "yaml"
 require "bcrypt"
 
 SUPPORTED_EXT = %w(txt md)
+ACCOUNT_FILE = "accounts.yml"
+DATA_DIRECTORY = "data"
+TEST_DIRECTORY = "test/"
 
 configure do
   enable :sessions
@@ -33,9 +36,18 @@ end
 
 def data_path
   if ENV["RACK_ENV"] == "test"
-    File.expand_path("test/data", __dir__)
+    File.expand_path("#{TEST_DIRECTORY}#{DATA_DIRECTORY}", __dir__)
   else
-    File.expand_path("data", __dir__)
+    File.expand_path(DATA_DIRECTORY, __dir__)
+  end
+end
+
+def account_file_path
+  if ENV["RACK_ENV"] == "test"
+    File.expand_path("#{TEST_DIRECTORY}#{ACCOUNT_FILE}",
+                     __dir__)
+  else
+    File.expand_path(ACCOUNT_FILE, __dir__)
   end
 end
 
@@ -51,17 +63,17 @@ def prompt_login
 end
 
 def accounts
-  account_path = if ENV["RACK_ENV"] == "test"
-                   File.expand_path("test/accounts.yml", __dir__)
-                 else
-                   File.expand_path("accounts.yml", __dir__)
-                 end
-
-  YAML.load_file(account_path)
+  YAML.load_file(account_file_path)
 end
 
-def valid_password?(user_name, raw_password)
-  BCrypt::Password.new(accounts[user_name]) == raw_password
+def valid_password?(password)
+  (4..10).cover?(password.size) && !/\s/.match?(password)
+end
+
+def correct_password?(username, raw_password)
+  return false if accounts[username].nil?
+
+  BCrypt::Password.new(accounts[username]) == raw_password
 end
 
 # rubocop: disable Metrics/MethodLength
@@ -90,10 +102,6 @@ def split_filename_rgx
     \z
   }ix
 end
-
-# before do; end
-
-# helpers do; end
 
 def search_files
   pattern = File.join(data_path, '*')
@@ -135,11 +143,15 @@ end
 
 # Split into filename and extension
 def split_filename(filename)
-  split_filename_rgx.match(filename).captures
+  match_res = split_filename_rgx.match(filename)
+
+  return nil if match_res.nil?
+
+  match_res.captures
 end
 
-# Returns an array of filenames with the same name ending with (digit) and same
-# extension
+# Returns an array of filenames with the same name ending with "($DIGIT)"
+# and the same extension
 def find_dup_files(name, ext)
   search_files.select do |file|
     match_res = dup_rgx.match(file)
@@ -167,10 +179,31 @@ end
 
 def write_file(filename, content)
   file_path = File.join(data_path, filename)
-  f = File.new(file_path, "w+")
-  f.write(content)
-  f.close
+  File.write(file_path, content)
 end
+
+def valid_username?(username)
+  (4..10).cover?(username.size) && !/[^\w]/.match?(username)
+end
+
+def acc_exists?(username)
+  accounts.keys.include?(username)
+end
+
+def validate_password(password)
+  (4..10).cover?(password.size) && !/\s/.match?(password)
+end
+
+def register_acc(username, password)
+  accounts_new = accounts
+  accounts_new[username] = BCrypt::Password.create(password).to_s
+
+  File.write(account_file_path, YAML.dump(accounts_new))
+end
+
+# before do; end
+
+# helpers do; end
 
 # Render homepage
 get "/" do
@@ -236,6 +269,33 @@ get "/new" do
   erb :new, layout: :layout
 end
 
+# Write to file
+post "/:filename/edit" do
+  prompt_login
+
+  file_path = File.join(data_path, params[:filename])
+  File.write(file_path, params[:content])
+
+  if params[:newfilename]
+    ext = split_filename(params[:newfilename])
+
+    if valid_ext?(ext)
+      new_file_path = File.join(data_path, params[:newfilename])
+      File.rename(file_path, new_file_path)
+
+      flash_msg = "#{params[:newfilename]} has been updated"
+    else
+      invalid_name
+      redirect "/#{params[:filename]}/edit"
+    end
+  else
+    flash_msg = "#{params[:filename]} has been updated."
+  end
+
+  session[:message] = flash_msg
+  redirect "/"
+end
+
 # Delete a file
 post "/:filename/delete" do
   prompt_login
@@ -265,15 +325,18 @@ post "/:filename/duplicate" do
   redirect "/"
 end
 
-# Login page
+# Render login page
 get "/login" do
   erb :login, layout: :layout
 end
 
 # Login
 post "/login" do
-  if valid_password?(params[:user_name], params[:password])
-    session[:user_name] = params[:user_name]
+  # Validate username
+
+  if valid_password?(params[:password]) &&
+     correct_password?(params[:username], params[:password])
+    session[:username] = params[:username]
     session[:message] = "Welcome!"
     session[:logged_in] = true
     redirect "/"
@@ -287,37 +350,56 @@ end
 # Logout
 post "/logout" do
   session[:logged_in] = false
-  session[:user_name] = nil
+  session[:username] = nil
 
   session[:message] = "You have been signed out."
 
   redirect "/"
 end
 
-# Write to file
-post "/:filename/edit" do
-  prompt_login
+# Signup
+get "/register" do
+  if session[:logged_in]
+    session[:message] = "You're already logged in."
 
-  file_path = File.join(data_path, params[:filename])
-
-  File.write(file_path, params[:content])
-
-  if params[:newfilename]
-    ext = params[:newfilename].split('.').last
-
-    if valid_ext?(ext)
-      new_file_path = File.join(data_path, params[:newfilename])
-      File.rename(file_path, new_file_path)
-
-      flash_msg = "#{params[:newfilename]} has been updated"
-    else
-      invalid_name
-      redirect "/#{params[:filename]}/edit"
-    end
+    redirect "/"
   else
-    flash_msg = "#{params[:filename]} has been updated."
+    erb :register, layout: :layout
   end
-
-  session[:message] = flash_msg
-  redirect "/"
 end
+
+# Create account
+# rubocop: disable Metrics/BlockLength
+post "/register" do
+  if session[:logged_in]
+    session[:message] = "You're already logged in."
+
+    redirect "/"
+  elsif acc_exists?(params[:username])
+    session[:message] = "That account name already exists."
+    status 422
+
+    erb :register, layout: :layout
+  elsif !valid_username?(params[:username])
+    session[:message] = "Username must consist of only letters and numbers, "\
+                        "and must be between 4-10 characters."
+    status 422
+
+    erb :register, layout: :layout
+  elsif !valid_password?(params[:password])
+    session[:message] = "Password must be between 4-10 characters and cannot "\
+                        "contain spaces."
+    status 422
+
+    erb :register, layout: :layout
+  else
+    register_acc(params[:username], params[:password])
+
+    session[:message] = "Your account has been registered."
+    session[:logged_in] = true
+    session[:username] = params[:username]
+
+    redirect "/"
+  end
+end
+# rubocop: enable Metrics/BlockLength

@@ -1,5 +1,6 @@
-{
-        bill: "$2a$12$2KZjaPDY6SJtzDL1ooRx.OOa.Q6wlHPwz2GLjrt7SPlOMenDKJ0rm",
-        sonia: $2a$12$wBa.tkTL95MW6c7VHtvLNuia6KXLx9038Ngkpdzq6IPBvsLm5qzAu",
-        admin: "$2a$12$bFZo.dBUHZeCelFk7L1VW.8fovMaAdcM6nE1MUNUcl4tBIAF/8O6."
-}
+---
+bill: "$2a$12$2KZjaPDY6SJtzDL1ooRx.OOa.Q6wlHPwz2GLjrt7SPlOMenDKJ0rm"
+sonia: $2a$12$wBa.tkTL95MW6c7VHtvLNuia6KXLx9038Ngkpdzq6IPBvsLm5qzAu"
+admin: "$2a$12$bFZo.dBUHZeCelFk7L1VW.8fovMaAdcM6nE1MUNUcl4tBIAF/8O6."
+john: "$2a$12$/QxQwF4NvwfSMNaDPgTpyud6hG8PM3zOghI7wS1GB6170wt23Nzj6"
+peter: "$2a$12$0qrilCu4mxqrSML0mZxDuuKkCXtYRErii.Fm2d5HaP502bJiFUVza"
