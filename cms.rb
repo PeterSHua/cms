@@ -9,7 +9,8 @@ require "bcrypt"
 
 SUPPORTED_EXT = %w(txt md)
 ACCOUNT_FILE = "accounts.yml"
-DATA_DIRECTORY = "data"
+DOC_DIRECTORY = "public/docs"
+IMG_DIRECTORY = "public/images"
 TEST_DIRECTORY = "test"
 
 configure do
@@ -36,9 +37,17 @@ end
 
 def data_path
   if ENV["RACK_ENV"] == "test"
-    File.expand_path(File.join(TEST_DIRECTORY, DATA_DIRECTORY), __dir__)
+    File.expand_path(File.join(TEST_DIRECTORY, DOC_DIRECTORY), __dir__)
   else
-    File.expand_path(DATA_DIRECTORY, __dir__)
+    File.expand_path(DOC_DIRECTORY, __dir__)
+  end
+end
+
+def img_path
+  if ENV["RACK_ENV"] == "test"
+    File.expand_path(File.join(TEST_DIRECTORY, IMG_DIRECTORY), __dir__)
+  else
+    File.expand_path(IMG_DIRECTORY, __dir__)
   end
 end
 
