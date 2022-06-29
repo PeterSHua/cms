@@ -1,0 +1,9 @@
+<h1><%= params[:filename] %> Versions</h1>
+<ul>
+  <% @files.each do |file| %>
+    <li>
+      <a href="/<%= params[:filename] %> <%= VERSIONS_DIR %>/<%= file %>/view"><%= file %></a>
+    </li>
+  <% end %>
+</ul>
+<a href="/">Back</a>

@@ -111,14 +111,17 @@ class CMSTest < Minitest::Test
   def test_update_file
     create_document "about.md"
 
-    post "/about.md/edit", { content: "new content" }, admin_session
+    body = { newfilename: "about.md", content: "new content" }
+    post "/about.md/edit", body, admin_session
 
     assert_equal 302, last_response.status
-    assert_equal "about.md has been updated.", session[:message]
 
-    get "/about.md/view"
+    get last_response["Location"]
 
     assert_equal 200, last_response.status
+    assert_includes last_response.body, "about.md has been updated."
+
+    get "/about.md/view"
     assert_includes last_response.body, "new content"
   end
 

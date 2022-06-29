@@ -9,9 +9,10 @@ require "bcrypt"
 
 SUPPORTED_EXT = %w(txt md)
 ACCOUNT_FILE = "accounts.yml"
-DOC_DIRECTORY = "public/docs"
-IMG_DIRECTORY = "public/images"
-TEST_DIRECTORY = "test"
+DOC_DIR = "public/docs"
+IMG_DIR = "public/images"
+TEST_DIR = "test"
+VERSIONS_DIR ="versions"
 
 configure do
   enable :sessions
@@ -37,23 +38,23 @@ end
 
 def data_path
   if ENV["RACK_ENV"] == "test"
-    File.expand_path(File.join(TEST_DIRECTORY, DOC_DIRECTORY), __dir__)
+    File.expand_path(File.join(TEST_DIR, DOC_DIR), __dir__)
   else
-    File.expand_path(DOC_DIRECTORY, __dir__)
+    File.expand_path(DOC_DIR, __dir__)
   end
 end
 
 def img_path
   if ENV["RACK_ENV"] == "test"
-    File.expand_path(File.join(TEST_DIRECTORY, IMG_DIRECTORY), __dir__)
+    File.expand_path(File.join(TEST_DIR, IMG_DIR), __dir__)
   else
-    File.expand_path(IMG_DIRECTORY, __dir__)
+    File.expand_path(IMG_DIR, __dir__)
   end
 end
 
 def account_file_path
   if ENV["RACK_ENV"] == "test"
-    File.expand_path(File.join(TEST_DIRECTORY, ACCOUNT_FILE), __dir__)
+    File.expand_path(File.join(TEST_DIR, ACCOUNT_FILE), __dir__)
   else
     File.expand_path(ACCOUNT_FILE, __dir__)
   end
@@ -111,11 +112,11 @@ def split_filename_rgx
   }ix
 end
 
-def search_files
-  pattern = File.join(data_path, '*')
+def search_files(path)
+  pattern = File.join(path, '*')
 
-  files = Dir.glob(pattern).reject do |path|
-    File.directory?(path)
+  files = Dir.glob(pattern).reject do |file_path|
+    File.directory?(file_path)
   end
 
   files.map! do |file|
@@ -123,14 +124,10 @@ def search_files
   end
 end
 
-def valid_ext?(ext)
-  SUPPORTED_EXT.include?(ext)
-end
+def valid_ext?(filename_arr)
+  return false unless filename_arr.is_a?(Array) && filename_arr.size == 2
 
-def invalid_name
-  session[:message] = "Invalid file extension. Supported file extensions: "\
-                      "#{SUPPORTED_EXT.join(', ')}"
-  status 422
+  SUPPORTED_EXT.include?(filename_arr.last)
 end
 
 def new_filename_no_dups(filename)
@@ -161,7 +158,7 @@ end
 # Returns an array of filenames with the same name ending with "($DIGIT)"
 # and the same extension
 def find_dup_files(name, ext)
-  search_files.select do |file|
+  search_files(data_path).select do |file|
     match_res = dup_rgx.match(file)
 
     next if match_res.nil?
@@ -215,7 +212,7 @@ end
 
 # Render homepage
 get "/" do
-  @files = search_files
+  @files = search_files(data_path)
 
   erb :home
 end
@@ -244,27 +241,52 @@ get "/:filename/edit" do
   erb :edit, layout: :layout
 end
 
+# View file's versions
+get "/:filename/#{VERSIONS_DIR}" do
+  file_path = File.join(data_path, params[:filename])
+  versions_filepath = "#{file_path} #{VERSIONS_DIR}"
+
+  @files = search_files(versions_filepath)
+
+  erb :versions
+end
+
+# View a specific version of a file
+get "/:versions/:filename/view" do
+  file_path = File.join(data_path, params[:versions], params[:filename])
+
+  if File.file?(file_path)
+    load_file_content(file_path)
+  else
+    session[:message] = "#{params[:filenamever]} does not exist."
+    redirect "/"
+  end
+end
+
 # Create a file
 post "/new" do
   prompt_login
 
-  file_name = params[:filename]
-  ext = file_name.split('.').last
+  filename = params[:filename]
+  filename_arr = split_filename(params[:filename])
 
-  if file_name.empty?
+  if filename.empty?
     session[:message] = "A name is required."
     status 422
 
     erb :new, layout: :layout
-  elsif !valid_ext?(ext)
-    invalid_name
+  elsif !valid_ext?(filename_arr)
+    session[:message] = "Invalid file extension. Supported file extensions: "\
+                        "#{SUPPORTED_EXT.join(', ')}"
+    status 422
 
     erb :new, layout: :layout
   else
-    file_path = File.join(data_path, file_name)
+    file_path = File.join(data_path, filename)
     File.new(file_path, "w+")
+    FileUtils.mkdir(File.join(data_path, "#{filename} #{VERSIONS_DIR}"))
 
-    session[:message] = "#{file_name} was created."
+    session[:message] = "#{filename} was created."
 
     redirect "/"
   end
@@ -277,31 +299,60 @@ get "/new" do
   erb :new, layout: :layout
 end
 
-# Write to file
+def calc_max_version(versions_filepath)
+  max_version = search_files(versions_filepath).map do |file|
+    split_filename(file).first.to_i
+  end.max
+
+  return -1 if max_version.nil?
+
+  max_version
+end
+
+# Update file
 post "/:filename/edit" do
   prompt_login
 
   file_path = File.join(data_path, params[:filename])
+  versions_filepath = "#{file_path} #{VERSIONS_DIR}"
+
+  max_version = calc_max_version(versions_filepath)
+
+  prev_version_filename = "#{max_version + 1}."\
+                          "#{split_filename(params[:filename]).last}"
+
+  # Make a copy of the file to the previous versions folder
+  FileUtils.cp(file_path, versions_filepath)
+
+  # Rename the copy to its version number
+  src = File.join(versions_filepath, params[:filename])
+  dest = File.join(versions_filepath, prev_version_filename)
+  FileUtils.mv(src, dest)
+
+  # Update the contents of the file
   File.write(file_path, params[:content])
 
-  if params[:newfilename]
-    ext = split_filename(params[:newfilename])
+  new_filename_arr = split_filename(params[:newfilename])
 
-    if valid_ext?(ext)
-      new_file_path = File.join(data_path, params[:newfilename])
-      File.rename(file_path, new_file_path)
+  if params[:newfilename].empty?
+    session[:message] = "A name is required."
+    status 422
 
-      flash_msg = "#{params[:newfilename]} has been updated"
-    else
-      invalid_name
-      redirect "/#{params[:filename]}/edit"
-    end
+    redirect "/#{params[:filename]}/edit"
+  elsif !valid_ext?(new_filename_arr)
+    session[:message] = "Invalid file extension. Supported file extensions: "\
+                        "#{SUPPORTED_EXT.join(', ')}"
+    status 422
+
+    redirect "/#{params[:filename]}/edit"
   else
-    flash_msg = "#{params[:filename]} has been updated."
-  end
+    new_file_path = File.join(data_path, params[:newfilename])
+    File.rename(file_path, new_file_path)
 
-  session[:message] = flash_msg
-  redirect "/"
+    session[:message] = "#{params[:newfilename]} has been updated."
+
+    redirect "/"
+  end
 end
 
 # Delete a file
