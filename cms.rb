@@ -10,7 +10,7 @@ require "bcrypt"
 SUPPORTED_EXT = %w(txt md)
 ACCOUNT_FILE = "accounts.yml"
 DATA_DIRECTORY = "data"
-TEST_DIRECTORY = "test/"
+TEST_DIRECTORY = "test"
 
 configure do
   enable :sessions
@@ -36,7 +36,7 @@ end
 
 def data_path
   if ENV["RACK_ENV"] == "test"
-    File.expand_path("#{TEST_DIRECTORY}#{DATA_DIRECTORY}", __dir__)
+    File.expand_path(File.join(TEST_DIRECTORY, DATA_DIRECTORY), __dir__)
   else
     File.expand_path(DATA_DIRECTORY, __dir__)
   end
@@ -44,8 +44,7 @@ end
 
 def account_file_path
   if ENV["RACK_ENV"] == "test"
-    File.expand_path("#{TEST_DIRECTORY}#{ACCOUNT_FILE}",
-                     __dir__)
+    File.expand_path(File.join(TEST_DIRECTORY, ACCOUNT_FILE), __dir__)
   else
     File.expand_path(ACCOUNT_FILE, __dir__)
   end
@@ -403,3 +402,28 @@ post "/register" do
   end
 end
 # rubocop: enable Metrics/BlockLength
+
+get "/img_upload" do
+  prompt_login
+
+  erb :img_upload, layout: :layout
+end
+
+post "/img_upload" do
+  prompt_login
+
+  if params[:img] && params[:img][:filename]
+    filename = params[:img][:filename]
+    tempfile = params[:img][:tempfile]
+
+    FileUtils.copy(tempfile, File.join(data_path, filename))
+
+    session[:message] = "#{filename} was uploaded."
+
+    redirect "/"
+  else
+    session[:message] = "Please select an image to upload"
+
+    erb :img_upload, layout: :layout
+  end
+end

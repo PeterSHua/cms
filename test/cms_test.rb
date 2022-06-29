@@ -394,4 +394,41 @@ class CMSTest < Minitest::Test
 
     assert session[:logged_in]
   end
+
+  def test_img_upload
+    get "/img_upload", {}, admin_session
+
+    assert_equal 200, last_response.status
+
+    filename = "ruby.png"
+    dir = File.expand_path("../#{TEST_DIRECTORY}", __dir__)
+
+    file = {
+      filename: "ruby.png",
+      tempfile: File.join(dir, filename)
+    }
+
+    post "/img_upload", { img: file }
+
+    assert_equal 302, last_response.status
+    assert_equal "#{filename} was uploaded.", session[:message]
+
+    get last_response["Location"]
+
+    assert_includes last_response.body, "ruby.png"
+  end
+
+  def test_img_upload_no_access
+    get "/img_upload", {}
+
+    assert_equal 302, last_response.status
+    assert_equal "You must be signed in to do that.", session[:message]
+  end
+
+  def test_img_upload_no_file
+    post "/img_upload", {}, admin_session
+
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "Please select an image to upload"
+  end
 end
